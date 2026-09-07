@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <OutputPath>..\..\build\plugins\AU-Assets-Swapper</OutputPath>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <Version>1.0.0</Version>
+        <Authors>AU-Assets-Swapper</Authors>
+        <Description>BepInEx IL2CPP plugin for Among Us asset swapping</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.746" />
+        <PackageReference Include="HarmonyX" Version="2.10.2" />
+        <PackageReference Include="Il2CppInterop.Runtime" Version="1.5.3" />
+    </ItemGroup>
+
+    <!-- When building locally, override these with your Among Us + BepInEx IL2CPP paths -->
+    <PropertyGroup>
+        <AmongUsDir Condition="'$(AmongUsDir)' == ''">D:\games\AU_BIE</AmongUsDir>
+        <BepInExDir Condition="'$(BepInExDir)' == ''">$(AmongUsDir)\BepInEx</BepInExDir>
+        <GameManagedDir>$(BepInExDir)\interop</GameManagedDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Reference Include="Il2Cppmscorlib">
+            <HintPath>$(GameManagedDir)\Il2Cppmscorlib.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine.CoreModule">
+            <HintPath>$(GameManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine.AssetBundleModule">
+            <HintPath>$(GameManagedDir)\UnityEngine.AssetBundleModule.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine.AudioModule">
+            <HintPath>$(GameManagedDir)\UnityEngine.AudioModule.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine.ImageConversionModule">
+            <HintPath>$(GameManagedDir)\UnityEngine.ImageConversionModule.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine.TextRenderingModule">
+            <HintPath>$(GameManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine.InputLegacyModule">
+            <HintPath>$(GameManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+</Project>
