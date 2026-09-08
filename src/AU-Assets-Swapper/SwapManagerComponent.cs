@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace AU_Assets_Swapper;
@@ -7,20 +6,24 @@ namespace AU_Assets_Swapper;
 public class SwapManagerComponent : MonoBehaviour
 {
     private float _nextScanTime;
-    private const float ScanInterval = 2f;
-    private readonly HashSet<int> _processedObjects = new();
+    private const float ScanInterval = 0.2f;
+    private const float RetryDuration = 3f;
+    private float _retryUntil;
+    private string _lastScene = "";
 
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.F5))
         {
             Plugin.SwapManager?.Rescan();
-            _processedObjects.Clear();
             Plugin.LogSource.LogInfo("[AUAS] Assets rescanned (F5 pressed).");
         }
 
-        if (Time.time < _nextScanTime) return;
-        _nextScanTime = Time.time + ScanInterval;
+        float now = Time.time;
+        bool aggressiveScan = now < _retryUntil;
+
+        if (!aggressiveScan && now < _nextScanTime) return;
+        _nextScanTime = now + ScanInterval;
 
         ScanAndReplace();
     }
@@ -32,8 +35,22 @@ public class SwapManagerComponent : MonoBehaviour
 
         try
         {
-            ReplaceSpriteRenderers(manager);
-            ReplaceRenderers(manager);
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            if (scene != _lastScene)
+            {
+                _lastScene = scene;
+                _retryUntil = Time.time + RetryDuration;
+                manager.Rescan();
+                Plugin.LogSource.LogInfo($"[AUAS] Scene changed to '{scene}', rescanning for {RetryDuration}s");
+            }
+
+            int spriteCount = ReplaceSpriteRenderers(manager);
+            int rendererCount = ReplaceRenderers(manager);
+
+            if (spriteCount == 0 && rendererCount == 0 && manager.HasAnyReplacement())
+            {
+                _retryUntil = Time.time + RetryDuration;
+            }
         }
         catch (Exception ex)
         {
@@ -41,16 +58,15 @@ public class SwapManagerComponent : MonoBehaviour
         }
     }
 
-    private void ReplaceSpriteRenderers(AssetSwapManager manager)
+    private int ReplaceSpriteRenderers(AssetSwapManager manager)
     {
         var renderers = FindObjectsOfType<SpriteRenderer>();
+        int replaced = 0;
+
         foreach (var sr in renderers)
         {
             if (sr == null || sr.sprite == null) continue;
             if (!sr.gameObject.activeInHierarchy) continue;
-
-            var id = sr.GetInstanceID();
-            if (_processedObjects.Contains(id)) continue;
 
             var spriteName = sr.sprite.name;
             if (manager.HasSpriteReplacement(spriteName))
@@ -59,7 +75,7 @@ public class SwapManagerComponent : MonoBehaviour
                 if (replacement != null)
                 {
                     sr.sprite = replacement;
-                    _processedObjects.Add(id);
+                    replaced++;
                 }
             }
             else if (manager.HasTextureReplacement(spriteName))
@@ -70,22 +86,23 @@ public class SwapManagerComponent : MonoBehaviour
                     var newSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), sr.sprite.pixelsPerUnit);
                     newSprite.name = spriteName;
                     sr.sprite = newSprite;
-                    _processedObjects.Add(id);
+                    replaced++;
                 }
             }
         }
+
+        return replaced;
     }
 
-    private void ReplaceRenderers(AssetSwapManager manager)
+    private int ReplaceRenderers(AssetSwapManager manager)
     {
         var renderers = FindObjectsOfType<Renderer>();
+        int replaced = 0;
+
         foreach (var r in renderers)
         {
             if (r == null || !r.gameObject.activeInHierarchy) continue;
             if (r is SpriteRenderer) continue;
-
-            var id = r.GetInstanceID();
-            if (_processedObjects.Contains(id)) continue;
 
             var mat = r.material;
             if (mat == null) continue;
@@ -99,9 +116,11 @@ public class SwapManagerComponent : MonoBehaviour
                 if (replacement != null)
                 {
                     mat.mainTexture = replacement;
-                    _processedObjects.Add(id);
+                    replaced++;
                 }
             }
         }
+
+        return replaced;
     }
 }

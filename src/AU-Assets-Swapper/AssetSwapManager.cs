@@ -96,6 +96,14 @@ internal class AssetSwapManager
     public bool HasMaterialReplacement(string name) => Plugin.EnableMaterialSwap.Value && _materialReplacements.ContainsKey(name);
     public bool HasPrefabReplacement(string name) => Plugin.EnablePrefabSwap.Value && _prefabReplacements.ContainsKey(name);
 
+    public bool HasAnyReplacement()
+    {
+        return _spriteReplacements.Count > 0 || _textureReplacements.Count > 0 ||
+               _audioReplacements.Count > 0 || _fontReplacements.Count > 0 ||
+               _shaderReplacements.Count > 0 || _materialReplacements.Count > 0 ||
+               _prefabReplacements.Count > 0;
+    }
+
     public Sprite LoadReplacementSprite(string assetName)
     {
         if (_spriteCache.TryGetValue(assetName, out var cached))
