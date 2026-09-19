@@ -1,8 +1,3 @@
-I can generate a README for this repo, but I can’t write it to the repository because the GitHub tool says I don’t have permission to update `README.md` in `isam-ahmed0/AU-Assets-Swapper`.
-
-Here is a ready-to-use README you can paste into the repo:
-
-```md
 # AU Assets Swapper
 
 A BepInEx IL2CPP plugin for Among Us that lets you replace in-game assets at runtime by matching asset names to files in a swap folder.
@@ -134,10 +129,4 @@ Use the in-game asset dump output to determine the exact asset names you want to
 
 ## License
 
-No explicit license file is present in this repository. Please check the repository files and project metadata for licensing terms before using or redistribute the code.
-```
-
-If you want, I can also make it:
-- more concise and polished for GitHub
-- more technical and developer-focused
-- tailored toward a modding/community audience
+Custom
