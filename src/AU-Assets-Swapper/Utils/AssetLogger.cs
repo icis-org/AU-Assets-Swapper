@@ -7,38 +7,36 @@ namespace AU_Assets_Swapper.Utils;
 
 internal static class AssetLogger
 {
-    private static readonly List<string> _loggedAssets = new();
+    private static readonly List<string> logged = new();
 
-    public static void LogAsset(string assetPath, Type assetType)
+    public static void LogAsset(string path, Type t)
     {
-        if (!Plugin.DumpAllAssets.Value)
-            return;
+        if (!Plugin.DumpAllAssets.Value) return;
 
-        var entry = $"[{assetType.Name}] {assetPath}";
-        if (!_loggedAssets.Contains(entry))
+        var entry = $"[{t.Name}] {path}";
+        if (!logged.Contains(entry))
         {
-            _loggedAssets.Add(entry);
+            logged.Add(entry);
             Plugin.LogSource.LogInfo($"[AUAS-DUMP] {entry}");
         }
     }
 
     public static void SaveDumpToFile()
     {
-        if (_loggedAssets.Count == 0)
-            return;
+        if (logged.Count == 0) return;
 
         try
         {
-            var dumpPath = Path.Combine(Plugin.SwapRootPath, "AssetDump.txt");
-            File.WriteAllLines(dumpPath, _loggedAssets);
-            Plugin.LogSource.LogInfo($"[AUAS] Asset dump saved to: {dumpPath} ({_loggedAssets.Count} entries)");
+            var p = Path.Combine(Plugin.SwapRootPath, "AssetDump.txt");
+            File.WriteAllLines(p, logged);
+            Plugin.LogSource.LogInfo($"[AUAS] dump saved: {p} ({logged.Count} entries)");
         }
         catch (Exception ex)
         {
-            Plugin.LogSource.LogError($"[AUAS] Failed to save asset dump: {ex.Message}");
+            Plugin.LogSource.LogError($"[AUAS] dump save failed: {ex.Message}");
         }
     }
 
-    public static void Clear() => _loggedAssets.Clear();
-    public static int Count => _loggedAssets.Count;
+    public static void Clear() => logged.Clear();
+    public static int Count => logged.Count;
 }

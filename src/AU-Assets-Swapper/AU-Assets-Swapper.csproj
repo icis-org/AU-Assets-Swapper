@@ -12,14 +12,14 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.746" />
+        <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.752" />
         <PackageReference Include="HarmonyX" Version="2.10.2" />
         <PackageReference Include="Il2CppInterop.Runtime" Version="1.5.3" />
     </ItemGroup>
 
     <!-- When building locally, override these with your Among Us + BepInEx IL2CPP paths -->
     <PropertyGroup>
-        <AmongUsDir Condition="'$(AmongUsDir)' == ''">D:\games\AU_BIE</AmongUsDir>
+        <AmongUsDir Condition="'$(AmongUsDir)' == ''">C:\games0\app\</AmongUsDir>
         <BepInExDir Condition="'$(BepInExDir)' == ''">$(AmongUsDir)\BepInEx</BepInExDir>
         <GameManagedDir>$(BepInExDir)\interop</GameManagedDir>
     </PropertyGroup>
@@ -67,6 +67,14 @@
         </Reference>
         <Reference Include="UnityEngine.IMGUIModule">
             <HintPath>$(GameManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine.UnityWebRequestModule">
+            <HintPath>$(GameManagedDir)\UnityEngine.UnityWebRequestModule.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+            <HintPath>$(GameManagedDir)\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
             <Private>false</Private>
         </Reference>
     </ItemGroup>

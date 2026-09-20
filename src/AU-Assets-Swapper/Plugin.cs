@@ -37,22 +37,25 @@ public class Plugin : BasePlugin
         LogSource = Log;
 
         PluginPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-        SwapRootPath = Path.Combine(
-            Directory.GetParent(PluginPath).Parent.FullName,
-            "AUAS_Data"
-        );
+        // go up two levels from the plugin dll to reach game root, then into AUAS_Data
+        var parent = Directory.GetParent(PluginPath);
+        var grandparent = parent?.Parent;
+        SwapRootPath = grandparent != null
+            ? Path.Combine(grandparent.FullName, "AUAS_Data")
+            : Path.Combine(PluginPath, "AUAS_Data");
 
         InitConfig();
-        CreateSwapDirectories();
+        CreateSwapDirs();
 
-        LogSource.LogInfo($"[AUAS] Plugin path: {PluginPath}");
-        LogSource.LogInfo($"[AUAS] Swap root: {SwapRootPath}");
+        LogSource.LogInfo($"[AUAS] plugin path: {PluginPath}");
+        LogSource.LogInfo($"[AUAS] swap root: {SwapRootPath}");
 
         SwapManager = new AssetSwapManager(SwapRootPath);
         SwapManager.ScanAndLoadAssets();
 
         HarmonyInstance = new Harmony("com.auassetsswapper.plugin");
 
+        // patch each thing, swallow errors so one failure doesn't kill the whole plugin
         try { ResourcesLoadPatch.Patch(HarmonyInstance); }
         catch (Exception ex) { LogSource.LogWarning($"[AUAS] Resources patch error: {ex.Message}"); }
 
@@ -63,26 +66,23 @@ public class Plugin : BasePlugin
         catch (Exception ex) { LogSource.LogWarning($"[AUAS] Addressables patch error: {ex.Message}"); }
 
         AddComponent<SwapManagerComponent>();
-
-        LogSource.LogInfo("[AUAS] Plugin loaded. Runtime scanner active.");
+        LogSource.LogInfo("[AUAS] plugin loaded. scanner active.");
     }
 
     public override bool Unload()
     {
         HarmonyInstance?.UnpatchSelf();
-        LogSource.LogInfo("[AUAS] Plugin unloaded, Harmony patches removed.");
+        LogSource.LogInfo("[AUAS] unloaded, harmony patches removed.");
         return true;
     }
 
     private void InitConfig()
     {
-        DumpAllAssets = Config.Bind(
-            "General", "DumpAllAssets", true,
-            "Log all loaded asset names to the BepInEx console (useful for discovering replaceable assets)"
-        );
+        DumpAllAssets = Config.Bind("General", "DumpAllAssets", false,
+            "Log all loaded asset names to the BepInEx console");
 
-        EnableSpriteSwap = Config.Bind("Swappers", "Sprites", true, "Enable sprite/texture swapping");
-        EnableTextureSwap = Config.Bind("Swappers", "Textures", true, "Enable raw Texture2D swapping");
+        EnableSpriteSwap = Config.Bind("Swappers", "Sprites", true, "Enable sprite swapping");
+        EnableTextureSwap = Config.Bind("Swappers", "Textures", true, "Enable Texture2D swapping");
         EnableAudioSwap = Config.Bind("Swappers", "Audio", true, "Enable audio clip swapping");
         EnableFontSwap = Config.Bind("Swappers", "Fonts", true, "Enable font swapping");
         EnableShaderSwap = Config.Bind("Swappers", "Shaders", true, "Enable shader swapping");
@@ -90,20 +90,21 @@ public class Plugin : BasePlugin
         EnablePrefabSwap = Config.Bind("Swappers", "Prefabs", true, "Enable prefab/gameobject swapping");
     }
 
-    private void CreateSwapDirectories()
+    private void CreateSwapDirs()
     {
-        string[] categories = { "Sprites", "Textures", "Audio", "Fonts", "Shaders", "Materials", "Prefabs" };
-        foreach (var cat in categories)
+        string[] cats = { "Sprites", "Textures", "Audio", "Fonts", "Shaders", "Materials", "Prefabs" };
+        foreach (var c in cats)
         {
-            var dir = Path.Combine(SwapRootPath, cat);
-            if (!Directory.Exists(dir))
-                Directory.CreateDirectory(dir);
+            var d = Path.Combine(SwapRootPath, c);
+            if (!Directory.Exists(d))
+                Directory.CreateDirectory(d);
         }
 
-        var readmePath = Path.Combine(SwapRootPath, "README.txt");
-        if (!File.Exists(readmePath))
+        // write a readme if there isn't one already
+        var readme = Path.Combine(SwapRootPath, "README.txt");
+        if (!File.Exists(readme))
         {
-            File.WriteAllText(readmePath,
+            File.WriteAllText(readme,
                 "AU-Assets-Swapper swap folder\n" +
                 "=============================\n\n" +
                 "Place replacement assets in the appropriate subfolder:\n\n" +

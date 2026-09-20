@@ -7,268 +7,321 @@ namespace AU_Assets_Swapper;
 
 internal class AssetSwapManager
 {
-    private readonly string _rootPath;
+    private readonly string _root;
 
-    private readonly Dictionary<string, string> _spriteReplacements = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> _textureReplacements = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> _audioReplacements = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> _fontReplacements = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> _shaderReplacements = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> _materialReplacements = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> _prefabReplacements = new(StringComparer.OrdinalIgnoreCase);
+    // case-insensitive so unity names match regardless of OS casing
+    private readonly Dictionary<string, string> sprites = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> textures = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> audio = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> fonts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> shaders = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> materials = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> prefabs = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Dictionary<string, Sprite> _spriteCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Texture2D> _textureCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, AudioClip> _audioCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Font> _fontCache = new(StringComparer.OrdinalIgnoreCase);
-
-    private readonly Dictionary<string, AssetBundle> _loadedBundles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Sprite> spriteCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Texture2D> texCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, AudioClip> audioCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Font> fontCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, AssetBundle> bundles = new(StringComparer.OrdinalIgnoreCase);
 
     public AssetSwapManager(string rootPath)
     {
-        _rootPath = rootPath;
+        _root = rootPath;
     }
 
     public void ScanAndLoadAssets()
     {
-        _spriteReplacements.Clear();
-        _textureReplacements.Clear();
-        _audioReplacements.Clear();
-        _fontReplacements.Clear();
-        _shaderReplacements.Clear();
-        _materialReplacements.Clear();
-        _prefabReplacements.Clear();
+        sprites.Clear(); textures.Clear(); audio.Clear();
+        fonts.Clear(); shaders.Clear(); materials.Clear(); prefabs.Clear();
 
-        ScanCategory("Sprites", _spriteReplacements);
-        ScanCategory("Textures", _textureReplacements);
-        ScanCategory("Audio", _audioReplacements);
-        ScanCategory("Fonts", _fontReplacements);
-        ScanCategory("Shaders", _shaderReplacements);
-        ScanCategory("Materials", _materialReplacements);
-        ScanCategory("Prefabs", _prefabReplacements);
+        Scan("Sprites", sprites);
+        Scan("Textures", textures);
+        Scan("Audio", audio);
+        Scan("Fonts", fonts);
+        Scan("Shaders", shaders);
+        Scan("Materials", materials);
+        Scan("Prefabs", prefabs);
 
-        int total = _spriteReplacements.Count + _textureReplacements.Count + _audioReplacements.Count +
-                     _fontReplacements.Count + _shaderReplacements.Count + _materialReplacements.Count +
-                     _prefabReplacements.Count;
+        int total = sprites.Count + textures.Count + audio.Count +
+                    fonts.Count + shaders.Count + materials.Count + prefabs.Count;
 
-        Plugin.LogSource.LogInfo($"[AUAS] Scanned: {_spriteReplacements.Count} sprites, {_textureReplacements.Count} textures, " +
-                           $"{_audioReplacements.Count} audio, {_fontReplacements.Count} fonts, " +
-                           $"{_shaderReplacements.Count} shaders, {_materialReplacements.Count} materials, " +
-                           $"{_prefabReplacements.Count} prefabs - total {total} replacements.");
+        Plugin.LogSource.LogInfo(
+            $"[AUAS] Scanned: {sprites.Count} sprites, {textures.Count} textures, " +
+            $"{audio.Count} audio, {fonts.Count} fonts, {shaders.Count} shaders, " +
+            $"{materials.Count} materials, {prefabs.Count} prefabs - total {total}");
     }
 
     public void Rescan()
     {
-        foreach (var bundle in _loadedBundles.Values)
-            bundle?.Unload(false);
-        _loadedBundles.Clear();
-
-        _spriteCache.Clear();
-        _textureCache.Clear();
-        _audioCache.Clear();
-        _fontCache.Clear();
-
+        foreach (var b in bundles.Values)
+            b?.Unload(false);
+        bundles.Clear();
+        spriteCache.Clear(); texCache.Clear(); audioCache.Clear(); fontCache.Clear();
         ScanAndLoadAssets();
     }
 
-    private void ScanCategory(string category, Dictionary<string, string> target)
+    private void Scan(string cat, Dictionary<string, string> map)
     {
-        var dir = Path.Combine(_rootPath, category);
-        if (!Directory.Exists(dir))
-            return;
+        var dir = Path.Combine(_root, cat);
+        if (!Directory.Exists(dir)) return;
 
-        var files = Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories);
-        foreach (var file in files)
+        foreach (var f in Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories))
         {
-            if (file.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var assetName = Path.GetFileNameWithoutExtension(file);
-            target[assetName] = file;
+            if (f.EndsWith(".meta", StringComparison.OrdinalIgnoreCase)) continue;
+            map[Path.GetFileNameWithoutExtension(f)] = f;
         }
     }
 
-    public bool HasSpriteReplacement(string name) => Plugin.EnableSpriteSwap.Value && _spriteReplacements.ContainsKey(name);
-    public bool HasTextureReplacement(string name) => Plugin.EnableTextureSwap.Value && _textureReplacements.ContainsKey(name);
-    public bool HasAudioReplacement(string name) => Plugin.EnableAudioSwap.Value && _audioReplacements.ContainsKey(name);
-    public bool HasFontReplacement(string name) => Plugin.EnableFontSwap.Value && _fontReplacements.ContainsKey(name);
-    public bool HasShaderReplacement(string name) => Plugin.EnableShaderSwap.Value && _shaderReplacements.ContainsKey(name);
-    public bool HasMaterialReplacement(string name) => Plugin.EnableMaterialSwap.Value && _materialReplacements.ContainsKey(name);
-    public bool HasPrefabReplacement(string name) => Plugin.EnablePrefabSwap.Value && _prefabReplacements.ContainsKey(name);
+    // --- has-replacement checks (gated by config toggles) ---
+
+    public bool HasSprite(string n) => Plugin.EnableSpriteSwap.Value && sprites.ContainsKey(n);
+    public bool HasTexture(string n) => Plugin.EnableTextureSwap.Value && textures.ContainsKey(n);
+    public bool HasAudio(string n) => Plugin.EnableAudioSwap.Value && audio.ContainsKey(n);
+    public bool HasFont(string n) => Plugin.EnableFontSwap.Value && fonts.ContainsKey(n);
+    public bool HasShader(string n) => Plugin.EnableShaderSwap.Value && shaders.ContainsKey(n);
+    public bool HasMaterial(string n) => Plugin.EnableMaterialSwap.Value && materials.ContainsKey(n);
+    public bool HasPrefab(string n) => Plugin.EnablePrefabSwap.Value && prefabs.ContainsKey(n);
 
     public bool HasAnyReplacement()
     {
-        return _spriteReplacements.Count > 0 || _textureReplacements.Count > 0 ||
-               _audioReplacements.Count > 0 || _fontReplacements.Count > 0 ||
-               _shaderReplacements.Count > 0 || _materialReplacements.Count > 0 ||
-               _prefabReplacements.Count > 0;
+        return sprites.Count > 0 || textures.Count > 0 || audio.Count > 0 ||
+               fonts.Count > 0 || shaders.Count > 0 || materials.Count > 0 || prefabs.Count > 0;
     }
+
+    // try every asset type in priority order. used by all the harmony patches
+    // so we don't have to copy-paste this shit 3 times
+    public UnityEngine.Object TryFindReplacement(string name)
+    {
+        // textures first because sprites also show up as textures sometimes
+        if (HasTexture(name))
+        {
+            var t = LoadReplacementTexture(name);
+            if (t != null) return t;
+        }
+
+        if (HasSprite(name))
+        {
+            var s = LoadReplacementSprite(name);
+            if (s != null) return s;
+        }
+
+        if (HasAudio(name))
+        {
+            var c = LoadReplacementAudio(name);
+            if (c != null) return c;
+        }
+
+        if (HasFont(name))
+        {
+            var f = LoadReplacementFont(name);
+            if (f != null) return f;
+        }
+
+        if (HasShader(name))
+        {
+            var sh = LoadReplacementShader(name);
+            if (sh != null) return sh;
+        }
+
+        if (HasMaterial(name))
+        {
+            var m = LoadReplacementMaterial(name);
+            if (m != null) return m;
+        }
+
+        if (HasPrefab(name))
+        {
+            var p = LoadReplacementPrefab(name);
+            if (p != null) return p;
+        }
+
+        return null;
+    }
+
+    // typed variant for Resources.Load(path, type)
+    public UnityEngine.Object TryFindReplacement(string name, Type t)
+    {
+        if (t == typeof(Texture2D) && HasTexture(name))
+            return LoadReplacementTexture(name);
+        if (t == typeof(Sprite) && HasSprite(name))
+            return LoadReplacementSprite(name);
+        if (t == typeof(AudioClip) && HasAudio(name))
+            return LoadReplacementAudio(name);
+        if (t == typeof(Font) && HasFont(name))
+            return LoadReplacementFont(name);
+        if (t == typeof(Shader) && HasShader(name))
+            return LoadReplacementShader(name);
+        if (t == typeof(Material) && HasMaterial(name))
+            return LoadReplacementMaterial(name);
+        if (t == typeof(GameObject) && HasPrefab(name))
+            return LoadReplacementPrefab(name);
+        return null;
+    }
+
+    // --- loaders (cached where it makes sense) ---
 
     public Sprite LoadReplacementSprite(string assetName)
     {
-        if (_spriteCache.TryGetValue(assetName, out var cached))
+        if (spriteCache.TryGetValue(assetName, out var cached))
             return cached;
 
-        if (!_spriteReplacements.TryGetValue(assetName, out var filePath))
+        if (!sprites.TryGetValue(assetName, out var path))
             return null;
 
         try
         {
-            var tex = ImageLoader.LoadTexture2D(filePath);
+            var tex = ImageLoader.LoadTexture2D(path);
             if (tex == null)
             {
-                Plugin.LogSource.LogWarning($"[AUAS] Failed to load texture for sprite: {assetName}");
+                Plugin.LogSource.LogWarning($"[AUAS] sprite tex load fail: {assetName}");
                 return null;
             }
 
-            var sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
-            sprite.name = assetName;
-
-            _spriteCache[assetName] = sprite;
-            Plugin.LogSource.LogInfo($"[AUAS] Loaded sprite replacement: {assetName} ({tex.width}x{tex.height})");
-            return sprite;
+            var spr = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height),
+                new Vector2(0.5f, 0.5f), 100f);
+            spr.name = assetName;
+            spriteCache[assetName] = spr;
+            Plugin.LogSource.LogInfo($"[AUAS] sprite: {assetName} ({tex.width}x{tex.height})");
+            return spr;
         }
         catch (Exception ex)
         {
-            Plugin.LogSource.LogError($"[AUAS] Error loading sprite '{assetName}': {ex.Message}");
+            Plugin.LogSource.LogError($"[AUAS] sprite err '{assetName}': {ex.Message}");
             return null;
         }
     }
 
     public Texture2D LoadReplacementTexture(string assetName)
     {
-        if (_textureCache.TryGetValue(assetName, out var cached))
+        if (texCache.TryGetValue(assetName, out var cached))
             return cached;
 
-        if (!_textureReplacements.TryGetValue(assetName, out var filePath))
+        if (!textures.TryGetValue(assetName, out var path))
             return null;
 
         try
         {
-            var tex = ImageLoader.LoadTexture2D(filePath);
+            var tex = ImageLoader.LoadTexture2D(path);
             if (tex == null)
             {
-                Plugin.LogSource.LogWarning($"[AUAS] Failed to load texture: {assetName}");
+                Plugin.LogSource.LogWarning($"[AUAS] tex load fail: {assetName}");
                 return null;
             }
 
             tex.name = assetName;
-            _textureCache[assetName] = tex;
-            Plugin.LogSource.LogInfo($"[AUAS] Loaded texture replacement: {assetName} ({tex.width}x{tex.height})");
+            texCache[assetName] = tex;
+            Plugin.LogSource.LogInfo($"[AUAS] texture: {assetName} ({tex.width}x{tex.height})");
             return tex;
         }
         catch (Exception ex)
         {
-            Plugin.LogSource.LogError($"[AUAS] Error loading texture '{assetName}': {ex.Message}");
+            Plugin.LogSource.LogError($"[AUAS] tex err '{assetName}': {ex.Message}");
             return null;
         }
     }
 
     public AudioClip LoadReplacementAudio(string assetName)
     {
-        if (_audioCache.TryGetValue(assetName, out var cached))
+        if (audioCache.TryGetValue(assetName, out var cached))
             return cached;
 
-        if (!_audioReplacements.TryGetValue(assetName, out var filePath))
+        if (!audio.TryGetValue(assetName, out var path))
             return null;
 
         try
         {
-            var clip = AudioLoader.LoadAudioClip(filePath, assetName);
+            var clip = AudioLoader.LoadAudioClip(path, assetName);
             if (clip == null)
             {
-                Plugin.LogSource.LogWarning($"[AUAS] Failed to load audio: {assetName}");
+                Plugin.LogSource.LogWarning($"[AUAS] audio load fail: {assetName}");
                 return null;
             }
 
-            _audioCache[assetName] = clip;
-            Plugin.LogSource.LogInfo($"[AUAS] Loaded audio replacement: {assetName}");
+            audioCache[assetName] = clip;
+            Plugin.LogSource.LogInfo($"[AUAS] audio: {assetName}");
             return clip;
         }
         catch (Exception ex)
         {
-            Plugin.LogSource.LogError($"[AUAS] Error loading audio '{assetName}': {ex.Message}");
+            Plugin.LogSource.LogError($"[AUAS] audio err '{assetName}': {ex.Message}");
             return null;
         }
     }
 
     public Font LoadReplacementFont(string assetName)
     {
-        if (_fontCache.TryGetValue(assetName, out var cached))
+        if (fontCache.TryGetValue(assetName, out var cached))
             return cached;
 
-        if (!_fontReplacements.TryGetValue(assetName, out var filePath))
+        if (!fonts.TryGetValue(assetName, out var path))
             return null;
 
         try
         {
-            var font = new Font(filePath);
-            font.name = assetName;
-
-            _fontCache[assetName] = font;
-            Plugin.LogSource.LogInfo($"[AUAS] Loaded font replacement: {assetName}");
-            return font;
+            var f = new Font(path);
+            f.name = assetName;
+            fontCache[assetName] = f;
+            Plugin.LogSource.LogInfo($"[AUAS] font: {assetName}");
+            return f;
         }
         catch (Exception ex)
         {
-            Plugin.LogSource.LogError($"[AUAS] Error loading font '{assetName}': {ex.Message}");
+            Plugin.LogSource.LogError($"[AUAS] font err '{assetName}': {ex.Message}");
             return null;
         }
     }
 
-    public Shader LoadReplacementShader(string assetName)
+    public Shader LoadReplacementShader(string name)
     {
-        if (!_shaderReplacements.TryGetValue(assetName, out var filePath))
+        if (!shaders.TryGetValue(name, out var path))
             return null;
-        return LoadFromBundle<Shader>(assetName, filePath);
+        return LoadFromBundle<Shader>(name, path);
     }
 
-    public Material LoadReplacementMaterial(string assetName)
+    public Material LoadReplacementMaterial(string name)
     {
-        if (!_materialReplacements.TryGetValue(assetName, out var filePath))
+        if (!materials.TryGetValue(name, out var path))
             return null;
-        return LoadFromBundle<Material>(assetName, filePath);
+        return LoadFromBundle<Material>(name, path);
     }
 
-    public GameObject LoadReplacementPrefab(string assetName)
+    public GameObject LoadReplacementPrefab(string name)
     {
-        if (!_prefabReplacements.TryGetValue(assetName, out var filePath))
+        if (!prefabs.TryGetValue(name, out var path))
             return null;
-        return LoadFromBundle<GameObject>(assetName, filePath);
+        return LoadFromBundle<GameObject>(name, path);
     }
 
     private T LoadFromBundle<T>(string assetName, string bundlePath) where T : UnityEngine.Object
     {
         try
         {
-            if (!_loadedBundles.TryGetValue(bundlePath, out var bundle) || bundle == null)
+            if (!bundles.TryGetValue(bundlePath, out var b) || b == null)
             {
-                bundle = AssetBundle.LoadFromFile(bundlePath);
-                if (bundle == null)
+                b = AssetBundle.LoadFromFile(bundlePath);
+                if (b == null)
                 {
-                    Plugin.LogSource.LogWarning($"[AUAS] Failed to load asset bundle: {bundlePath}");
+                    Plugin.LogSource.LogWarning($"[AUAS] bundle load fail: {bundlePath}");
                     return null;
                 }
-                _loadedBundles[bundlePath] = bundle;
+                bundles[bundlePath] = b;
             }
 
-            var obj = bundle.LoadAsset(assetName);
-            var asset = obj as T;
-            if (asset != null)
-                Plugin.LogSource.LogInfo($"[AUAS] Loaded {typeof(T).Name} replacement from bundle: {assetName}");
-            return asset;
+            var obj = b.LoadAsset(assetName) as T;
+            if (obj != null)
+                Plugin.LogSource.LogInfo($"[AUAS] {typeof(T).Name}: {assetName} (from bundle)");
+            return obj;
         }
         catch (Exception ex)
         {
-            Plugin.LogSource.LogError($"[AUAS] Error loading {typeof(T).Name} '{assetName}' from bundle: {ex.Message}");
+            Plugin.LogSource.LogError($"[AUAS] bundle err {typeof(T).Name} '{assetName}': {ex.Message}");
             return null;
         }
     }
 
-    public void LogLoadedAsset(string assetName, Type assetType)
+    public void LogLoadedAsset(string assetName, Type t)
     {
-        if (!Plugin.DumpAllAssets.Value)
-            return;
-        Plugin.LogSource.LogInfo($"[AUAS-DUMP] {assetType.Name}: {assetName}");
+        if (Plugin.DumpAllAssets.Value)
+            Plugin.LogSource.LogInfo($"[AUAS-DUMP] {t.Name}: {assetName}");
     }
 }

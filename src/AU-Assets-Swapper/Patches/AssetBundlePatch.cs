@@ -8,106 +8,61 @@ namespace AU_Assets_Swapper.Patches;
 
 internal static class AssetBundlePatch
 {
-    private static int _loadAssetFired;
-    private static int _loadAssetAsyncFired;
-    private static readonly HarmonyMethod _loadAssetPrefix = new(AccessTools.Method(typeof(AssetBundlePatch), nameof(LoadAssetPrefix)));
-    private static readonly HarmonyMethod _loadAssetAsyncPrefix = new(AccessTools.Method(typeof(AssetBundlePatch), nameof(LoadAssetAsyncPrefix)));
+    private static int _syncLogged;
+    private static int _asyncLogged;
+    private static readonly HarmonyMethod _syncPrefix = new(AccessTools.Method(typeof(AssetBundlePatch), nameof(SyncPrefix)));
+    private static readonly HarmonyMethod _asyncPrefix = new(AccessTools.Method(typeof(AssetBundlePatch), nameof(AsyncPrefix)));
 
     public static void Patch(Harmony harmony)
     {
-        var methods = typeof(AssetBundle).GetMethods(BindingFlags.Public | BindingFlags.Instance);
-        foreach (var method in methods)
+        foreach (var m in typeof(AssetBundle).GetMethods(BindingFlags.Public | BindingFlags.Instance))
         {
-            if (method.IsGenericMethod) continue;
-            if (method.ContainsGenericParameters) continue;
+            if (m.IsGenericMethod || m.ContainsGenericParameters) continue;
 
             try
             {
-                var parms = method.GetParameters();
-                if (method.Name == "LoadAsset" && parms.Length == 1 && parms[0].ParameterType == typeof(string))
-                    harmony.Patch(method, _loadAssetPrefix);
-                else if (method.Name == "LoadAssetAsync" && parms.Length == 1 && parms[0].ParameterType == typeof(string))
-                    harmony.Patch(method, _loadAssetAsyncPrefix);
+                var p = m.GetParameters();
+                if (m.Name == "LoadAsset" && p.Length == 1 && p[0].ParameterType == typeof(string))
+                    harmony.Patch(m, _syncPrefix);
+                else if (m.Name == "LoadAssetAsync" && p.Length == 1 && p[0].ParameterType == typeof(string))
+                    harmony.Patch(m, _asyncPrefix);
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogWarning($"[AUAS] Failed to patch AssetBundle.{method.Name}: {ex.Message}");
+                Plugin.LogSource.LogWarning($"[AUAS] Failed to patch AssetBundle.{m.Name}: {ex.Message}");
             }
         }
     }
 
-    internal static bool LoadAssetPrefix(AssetBundle __instance, string name, ref UnityEngine.Object __result)
+    internal static bool SyncPrefix(AssetBundle __instance, string name, ref UnityEngine.Object __result)
     {
-        if (Interlocked.CompareExchange(ref _loadAssetFired, 1, 0) == 0)
+        if (Interlocked.CompareExchange(ref _syncLogged, 1, 0) == 0)
             Plugin.LogSource.LogInfo("[AUAS] AssetBundle.LoadAsset(string) prefix CALLED");
 
-        if (string.IsNullOrEmpty(name))
-            return true;
+        if (string.IsNullOrEmpty(name)) return true;
+        var mgr = Plugin.SwapManager;
+        if (mgr == null) return true;
 
-        var manager = Plugin.SwapManager;
-        if (manager == null)
-            return true;
+        mgr.LogLoadedAsset($"[Bundle] {name}", typeof(UnityEngine.Object));
 
-        manager.LogLoadedAsset($"[Bundle] {name}", typeof(UnityEngine.Object));
-
-        if (manager.HasTextureReplacement(name))
-        {
-            var tex = manager.LoadReplacementTexture(name);
-            if (tex != null) { __result = tex; return false; }
-        }
-
-        if (manager.HasSpriteReplacement(name))
-        {
-            var sprite = manager.LoadReplacementSprite(name);
-            if (sprite != null) { __result = sprite; return false; }
-        }
-
-        if (manager.HasAudioReplacement(name))
-        {
-            var clip = manager.LoadReplacementAudio(name);
-            if (clip != null) { __result = clip; return false; }
-        }
-
-        if (manager.HasFontReplacement(name))
-        {
-            var font = manager.LoadReplacementFont(name);
-            if (font != null) { __result = font; return false; }
-        }
-
-        if (manager.HasShaderReplacement(name))
-        {
-            var shader = manager.LoadReplacementShader(name);
-            if (shader != null) { __result = shader; return false; }
-        }
-
-        if (manager.HasMaterialReplacement(name))
-        {
-            var mat = manager.LoadReplacementMaterial(name);
-            if (mat != null) { __result = mat; return false; }
-        }
-
-        if (manager.HasPrefabReplacement(name))
-        {
-            var prefab = manager.LoadReplacementPrefab(name);
-            if (prefab != null) { __result = prefab; return false; }
-        }
+        var res = mgr.TryFindReplacement(name);
+        if (res != null) { __result = res; return false; }
 
         return true;
     }
 
-    internal static bool LoadAssetAsyncPrefix(AssetBundle __instance, string name, ref AssetBundleRequest __result)
+    internal static bool AsyncPrefix(AssetBundle __instance, string name, ref AssetBundleRequest __result)
     {
-        if (Interlocked.CompareExchange(ref _loadAssetAsyncFired, 1, 0) == 0)
+        if (Interlocked.CompareExchange(ref _asyncLogged, 1, 0) == 0)
             Plugin.LogSource.LogInfo("[AUAS] AssetBundle.LoadAssetAsync(string) prefix CALLED");
 
-        if (string.IsNullOrEmpty(name))
-            return true;
+        if (string.IsNullOrEmpty(name)) return true;
+        var mgr = Plugin.SwapManager;
+        if (mgr == null) return true;
 
-        var manager = Plugin.SwapManager;
-        if (manager == null)
-            return true;
+        mgr.LogLoadedAsset($"[Bundle/Async] {name}", typeof(UnityEngine.Object));
 
-        manager.LogLoadedAsset($"[Bundle/Async] {name}", typeof(UnityEngine.Object));
+        // can't intercept async on IL2CPP - can't construct a dummy AssetBundleRequest
         return true;
     }
 }

@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Threading;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace AU_Assets_Swapper;
 
@@ -8,20 +10,17 @@ internal static class AudioLoader
 {
     public static AudioClip LoadAudioClip(string filePath, string clipName)
     {
-        if (!File.Exists(filePath))
-            return null;
+        if (!File.Exists(filePath)) return null;
 
         var ext = Path.GetExtension(filePath).ToLowerInvariant();
         var data = File.ReadAllBytes(filePath);
 
         switch (ext)
         {
-            case ".wav":
-                return LoadWav(data, clipName);
-            case ".ogg":
-                return LoadOgg(data, clipName);
+            case ".wav": return LoadWav(data, clipName);
+            case ".ogg": return LoadOgg(data, clipName);
             default:
-                Plugin.LogSource.LogWarning($"[AUAS] Unsupported audio format: {ext}. Use WAV or OGG.");
+                Plugin.LogSource.LogWarning($"[AUAS] unsupported audio format: {ext}. use WAV or OGG.");
                 return null;
         }
     }
@@ -30,42 +29,52 @@ internal static class AudioLoader
     {
         try
         {
-            int channels = BitConverter.ToInt16(data, 22);
-            int sampleRate = BitConverter.ToInt32(data, 24);
-            int bitsPerSample = BitConverter.ToInt16(data, 34);
-            int bytesPerSample = bitsPerSample / 8;
+            if (data.Length < 44) return null;
 
-            int headerOffset = 44;
-            while (headerOffset < data.Length - 8)
+            if (System.Text.Encoding.ASCII.GetString(data, 0, 4) != "RIFF" ||
+                System.Text.Encoding.ASCII.GetString(data, 8, 4) != "WAVE")
             {
-                string chunkId = System.Text.Encoding.ASCII.GetString(data, headerOffset, 4);
-                int chunkSize = BitConverter.ToInt32(data, headerOffset + 4);
-                if (chunkId == "data")
-                    break;
-                headerOffset += 8 + chunkSize;
+                Plugin.LogSource.LogWarning($"[AUAS] bad WAV: {clipName}");
+                return null;
             }
 
-            if (headerOffset >= data.Length)
-                return null;
+            int channels = BitConverter.ToInt16(data, 22);
+            int rate = BitConverter.ToInt32(data, 24);
+            int bps = BitConverter.ToInt16(data, 34);
 
-            int dataSize = BitConverter.ToInt32(data, headerOffset + 4);
+            if (channels <= 0 || rate <= 0 || bps <= 0) return null;
+
+            int bytesPerSample = bps / 8;
+
+            // find the "data" chunk (some wav files have extra chunks before it)
+            int offset = 44;
+            while (offset < data.Length - 8)
+            {
+                string id = System.Text.Encoding.ASCII.GetString(data, offset, 4);
+                int sz = BitConverter.ToInt32(data, offset + 4);
+                if (id == "data") break;
+                offset += 8 + sz;
+            }
+
+            if (offset >= data.Length) return null;
+
+            int dataSize = BitConverter.ToInt32(data, offset + 4);
             int sampleCount = dataSize / (channels * bytesPerSample);
-            headerOffset += 8;
+            offset += 8;
 
             var samples = new float[sampleCount * channels];
             for (int i = 0; i < samples.Length; i++)
             {
-                int byteIndex = headerOffset + i * bytesPerSample;
-                if (byteIndex + bytesPerSample > data.Length)
-                    break;
+                int byteIdx = offset + i * bytesPerSample;
+                if (byteIdx + bytesPerSample > data.Length) break;
 
-                if (bitsPerSample == 16)
-                    samples[i] = BitConverter.ToInt16(data, byteIndex) / 32768f;
-                else if (bitsPerSample == 8)
-                    samples[i] = (data[byteIndex] - 128) / 128f;
+                if (bps == 16)
+                    samples[i] = BitConverter.ToInt16(data, byteIdx) / 32768f;
+                else if (bps == 8)
+                    samples[i] = (data[byteIdx] - 128) / 128f;
             }
 
-            var clip = AudioClip.Create(clipName, sampleCount, channels, sampleRate, false);
+            var clip = AudioClip.Create(clipName, sampleCount, channels, rate, false);
             clip.SetData(samples, 0);
             return clip;
         }
@@ -76,24 +85,48 @@ internal static class AudioLoader
         }
     }
 
+    // hacky but works - dump to temp file and use unity'sWebRequest to decode
     private static AudioClip LoadOgg(byte[] data, string clipName)
     {
+        var tmp = Path.Combine(Path.GetTempPath(), "auas_" + Guid.NewGuid().ToString("N") + ".ogg");
         try
         {
-            var tempPath = Path.Combine(Path.GetTempPath(), "auas_" + Guid.NewGuid().ToString("N") + ".ogg");
-            File.WriteAllBytes(tempPath, data);
+            File.WriteAllBytes(tmp, data);
+            var uri = "file:///" + tmp.Replace("\\", "/");
+            var www = UnityWebRequestMultimedia.GetAudioClip(uri, AudioType.OGGVORBIS);
+            var op = www.SendWebRequest();
 
-            var clip = Resources.Load<AudioClip>(tempPath);
-            try { File.Delete(tempPath); } catch { }
+            // spin until done, with a timeout so we don't hang forever
+            var deadline = Environment.TickCount + 10000;
+            while (!op.isDone)
+            {
+                if (Environment.TickCount > deadline)
+                {
+                    Plugin.LogSource.LogWarning($"[AUAS] OGG load timed out: {clipName}");
+                    www.Abort();
+                    return null;
+                }
+                Thread.Sleep(16);
+            }
 
-            if (clip != null)
-                clip.name = clipName;
+            if (www.result != UnityWebRequest.Result.Success)
+            {
+                Plugin.LogSource.LogWarning($"[AUAS] OGG load failed: {www.error}");
+                return null;
+            }
+
+            var clip = DownloadHandlerAudioClip.GetContent(www);
+            if (clip != null) clip.name = clipName;
             return clip;
         }
         catch (Exception ex)
         {
-            Plugin.LogSource.LogError($"[AUAS] OGG load error: {ex.Message}");
+            Plugin.LogSource.LogError($"[AUAS] OGG error: {ex.Message}");
             return null;
+        }
+        finally
+        {
+            try { File.Delete(tmp); } catch { }
         }
     }
 }

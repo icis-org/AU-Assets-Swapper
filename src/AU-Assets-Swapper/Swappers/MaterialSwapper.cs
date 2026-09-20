@@ -4,14 +4,15 @@ namespace AU_Assets_Swapper.Swappers;
 
 internal static class MaterialSwapper
 {
-    public static Material ReplaceMaterialData(Material original, Material replacement)
+    public static Material ReplaceMaterialData(Material orig, Material repl)
     {
-        if (original == null || replacement == null) return original;
+        if (orig == null || repl == null) return orig;
 
-        var newMat = new Material(replacement);
-        newMat.name = original.name;
-        if (original.renderQueue != replacement.renderQueue)
-            newMat.renderQueue = original.renderQueue;
-        return newMat;
+        // clone so we don't mutate the original material
+        var mat = new Material(repl);
+        mat.name = orig.name;
+        if (orig.renderQueue != repl.renderQueue)
+            mat.renderQueue = orig.renderQueue;
+        return mat;
     }
 }
