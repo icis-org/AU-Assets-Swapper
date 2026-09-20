@@ -30,7 +30,6 @@ internal static class AssetLogger
         try
         {
             var dumpPath = Path.Combine(Plugin.SwapRootPath, "AssetDump.txt");
-            // old: File.WriteAllLines(dumpPath, _loggedAssets);
             File.WriteAllLines(dumpPath, _loggedAssets);
             Plugin.LogSource.LogInfo($"[AUAS] Asset dump saved to: {dumpPath} ({_loggedAssets.Count} entries)");
         }

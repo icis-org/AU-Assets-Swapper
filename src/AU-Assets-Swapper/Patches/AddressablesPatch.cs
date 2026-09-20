@@ -41,7 +41,10 @@ internal static class AddressablesPatch
                         patchedCount++;
                     }
                 }
-                catch { }
+                catch
+                {
+                    // Harmony already logs patch failures
+                }
             }
 
             Plugin.LogSource.LogInfo($"[AUAS] Addressables: patched {patchedCount} methods.");

@@ -84,7 +84,7 @@ internal static class AudioLoader
             File.WriteAllBytes(tempPath, data);
 
             var clip = Resources.Load<AudioClip>(tempPath);
-            try { File.Delete(tempPath); } catch { }
+            try { File.Delete(tempPath); } catch { /* file might still be locked by Unity */ }
 
             if (clip != null)
                 clip.name = clipName;

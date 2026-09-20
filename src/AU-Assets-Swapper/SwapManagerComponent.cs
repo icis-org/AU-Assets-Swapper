@@ -18,15 +18,12 @@ public class SwapManagerComponent : MonoBehaviour
     private GUIStyle _pickHeaderStyle;
 
     private readonly List<SpriteRenderer> _spriteRendererCache = new();
-    private readonly List<UnityEngine.UI.Image> _imageCache = new();
-    private readonly List<UnityEngine.UI.Text> _textCache = new();
     private readonly List<Renderer> _rendererCache = new();
 
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.F5))
         {
-            // Quick hot reload for the swap folder while testing in-game.
             Plugin.SwapManager?.Rescan();
             ScanAndReplace();
             Plugin.LogSource.LogInfo("[AUAS] Assets rescanned (F5 pressed).");
@@ -52,14 +49,11 @@ public class SwapManagerComponent : MonoBehaviour
         if (sceneName != _lastScene)
         {
             _lastScene = sceneName;
-            // This keeps the swap list aligned with the current scene without extra clicks.
             Plugin.SwapManager?.Rescan();
             ScanAndReplace();
             Plugin.LogSource.LogInfo($"[AUAS] Scene changed to '{sceneName}', scanning assets");
         }
     }
-
-    #region Asset Picker
 
     private void InspectUnderMouse()
     {
@@ -95,53 +89,34 @@ public class SwapManagerComponent : MonoBehaviour
 
     private bool CheckUIUnderMouse(Vector3 screenPos)
     {
-        _imageCache.Clear();
-        _imageCache.AddRange(FindObjectsOfType<UnityEngine.UI.Image>());
-        foreach (var image in _imageCache)
+        foreach (var img in FindObjectsOfType<UnityEngine.UI.Image>())
         {
-            if (image == null || !image.gameObject.activeInHierarchy) continue;
-            var rect = image.rectTransform;
-            if (rect == null) continue;
-
-            var canvas = image.GetComponentInParent<Canvas>();
-            var camera = canvas != null ? canvas.worldCamera : null;
-
-            if (RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, camera))
-            {
-                var id = image.gameObject.GetInstanceID();
-                if (id != _lastPickedID)
-                {
-                    _lastPickedID = id;
-                    LogGameObjectAssets(image.gameObject, "UI");
-                }
-                return true;
-            }
+            if (img == null || !img.gameObject.activeInHierarchy) continue;
+            var canvas = img.GetComponentInParent<Canvas>();
+            if (RectTransformUtility.RectangleContainsScreenPoint(
+                    img.rectTransform, screenPos, canvas?.worldCamera))
+                return MarkPicked(img.gameObject, "UI");
         }
 
-        _textCache.Clear();
-        _textCache.AddRange(FindObjectsOfType<UnityEngine.UI.Text>());
-        foreach (var text in _textCache)
+        foreach (var txt in FindObjectsOfType<UnityEngine.UI.Text>())
         {
-            if (text == null || !text.gameObject.activeInHierarchy) continue;
-            var rect = text.rectTransform;
-            if (rect == null) continue;
-
-            var canvas = text.GetComponentInParent<Canvas>();
-            var camera = canvas != null ? canvas.worldCamera : null;
-
-            if (RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, camera))
-            {
-                var id = text.gameObject.GetInstanceID();
-                if (id != _lastPickedID)
-                {
-                    _lastPickedID = id;
-                    LogGameObjectAssets(text.gameObject, "UI Text");
-                }
-                return true;
-            }
+            if (txt == null || !txt.gameObject.activeInHierarchy) continue;
+            var canvas = txt.GetComponentInParent<Canvas>();
+            if (RectTransformUtility.RectangleContainsScreenPoint(
+                    txt.rectTransform, screenPos, canvas?.worldCamera))
+                return MarkPicked(txt.gameObject, "UI Text");
         }
 
         return false;
+    }
+
+    private bool MarkPicked(GameObject go, string source)
+    {
+        var id = go.GetInstanceID();
+        if (id == _lastPickedID) return true;
+        _lastPickedID = id;
+        LogGameObjectAssets(go, source);
+        return true;
     }
 
     private void CheckRenderersUnderMouse(Vector3 worldPos)
@@ -366,10 +341,6 @@ public class SwapManagerComponent : MonoBehaviour
         return string.Join("/", pathParts);
     }
 
-    #endregion
-
-    #region Asset Scanner
-
     private void ScanAndReplace()
     {
         var manager = Plugin.SwapManager;
@@ -453,6 +424,4 @@ public class SwapManagerComponent : MonoBehaviour
 
         return replacedCount;
     }
-
-    #endregion
 }

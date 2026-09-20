@@ -81,7 +81,6 @@ public class Plugin : BasePlugin
             "Log all loaded asset names to the BepInEx console (useful for discovering replaceable assets)"
         );
 
-        // Keep the defaults simple and forgiving; users can turn individual swap types off when needed.
         EnableSpriteSwap = Config.Bind("Swappers", "Sprites", true, "Enable sprite/texture swapping");
         EnableTextureSwap = Config.Bind("Swappers", "Textures", true, "Enable raw Texture2D swapping");
         EnableAudioSwap = Config.Bind("Swappers", "Audio", true, "Enable audio clip swapping");
@@ -104,7 +103,6 @@ public class Plugin : BasePlugin
         var readmePath = Path.Combine(SwapRootPath, "README.txt");
         if (!File.Exists(readmePath))
         {
-            // old: File.WriteAllText(readmePath, "...long string...");
             File.WriteAllText(readmePath,
                 "AU-Assets-Swapper swap folder\n" +
                 "=============================\n\n" +

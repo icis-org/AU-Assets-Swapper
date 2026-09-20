@@ -18,7 +18,7 @@ internal static class ShaderSwapper
                 return shader;
         }
 
-        // fallback: if the exact name isn't there, use the first shader we can find so the scene doesn't explode.
+        // fallback: use whatever shader we can find so the scene doesn't break
         foreach (var asset in assets)
         {
             var shader = asset as Shader;

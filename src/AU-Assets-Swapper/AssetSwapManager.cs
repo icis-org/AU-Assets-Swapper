@@ -9,7 +9,7 @@ internal class AssetSwapManager
 {
     private readonly string _rootPath;
 
-    // Keep the replacement maps case-insensitive so Unity asset names still line up cleanly.
+    // case-insensitive so Unity asset names match regardless of OS casing
     private readonly Dictionary<string, string> _spriteReplacements = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _textureReplacements = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _audioReplacements = new(StringComparer.OrdinalIgnoreCase);
@@ -90,7 +90,6 @@ internal class AssetSwapManager
                 continue;
 
             var assetName = Path.GetFileNameWithoutExtension(filePath);
-            // old: replacementMap[assetName] = filePath;
             replacementMap[assetName] = filePath;
         }
     }
