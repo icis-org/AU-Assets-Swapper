@@ -8,8 +8,8 @@ namespace AU_Assets_Swapper.Patches;
 
 internal static class AssetBundlePatch
 {
-    private static int _loadAssetFired;
-    private static int _loadAssetAsyncFired;
+    private static int _loadAssetLogged;
+    private static int _asyncLoadLogged;
     private static readonly HarmonyMethod _loadAssetPrefix = new(AccessTools.Method(typeof(AssetBundlePatch), nameof(LoadAssetPrefix)));
     private static readonly HarmonyMethod _loadAssetAsyncPrefix = new(AccessTools.Method(typeof(AssetBundlePatch), nameof(LoadAssetAsyncPrefix)));
 
@@ -23,10 +23,10 @@ internal static class AssetBundlePatch
 
             try
             {
-                var parms = method.GetParameters();
-                if (method.Name == "LoadAsset" && parms.Length == 1 && parms[0].ParameterType == typeof(string))
+                var parameters = method.GetParameters();
+                if (method.Name == "LoadAsset" && parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
                     harmony.Patch(method, _loadAssetPrefix);
-                else if (method.Name == "LoadAssetAsync" && parms.Length == 1 && parms[0].ParameterType == typeof(string))
+                else if (method.Name == "LoadAssetAsync" && parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
                     harmony.Patch(method, _loadAssetAsyncPrefix);
             }
             catch (Exception ex)
@@ -38,7 +38,7 @@ internal static class AssetBundlePatch
 
     internal static bool LoadAssetPrefix(AssetBundle __instance, string name, ref UnityEngine.Object __result)
     {
-        if (Interlocked.CompareExchange(ref _loadAssetFired, 1, 0) == 0)
+        if (Interlocked.CompareExchange(ref _loadAssetLogged, 1, 0) == 0)
             Plugin.LogSource.LogInfo("[AUAS] AssetBundle.LoadAsset(string) prefix CALLED");
 
         if (string.IsNullOrEmpty(name))
@@ -52,8 +52,8 @@ internal static class AssetBundlePatch
 
         if (manager.HasTextureReplacement(name))
         {
-            var tex = manager.LoadReplacementTexture(name);
-            if (tex != null) { __result = tex; return false; }
+            var texture = manager.LoadReplacementTexture(name);
+            if (texture != null) { __result = texture; return false; }
         }
 
         if (manager.HasSpriteReplacement(name))
@@ -82,8 +82,8 @@ internal static class AssetBundlePatch
 
         if (manager.HasMaterialReplacement(name))
         {
-            var mat = manager.LoadReplacementMaterial(name);
-            if (mat != null) { __result = mat; return false; }
+            var material = manager.LoadReplacementMaterial(name);
+            if (material != null) { __result = material; return false; }
         }
 
         if (manager.HasPrefabReplacement(name))
@@ -97,7 +97,7 @@ internal static class AssetBundlePatch
 
     internal static bool LoadAssetAsyncPrefix(AssetBundle __instance, string name, ref AssetBundleRequest __result)
     {
-        if (Interlocked.CompareExchange(ref _loadAssetAsyncFired, 1, 0) == 0)
+        if (Interlocked.CompareExchange(ref _asyncLoadLogged, 1, 0) == 0)
             Plugin.LogSource.LogInfo("[AUAS] AssetBundle.LoadAssetAsync(string) prefix CALLED");
 
         if (string.IsNullOrEmpty(name))

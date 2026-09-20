@@ -9,6 +9,7 @@ internal class AssetSwapManager
 {
     private readonly string _rootPath;
 
+    // Keep the replacement maps case-insensitive so Unity asset names still line up cleanly.
     private readonly Dictionary<string, string> _spriteReplacements = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _textureReplacements = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _audioReplacements = new(StringComparer.OrdinalIgnoreCase);
@@ -31,13 +32,7 @@ internal class AssetSwapManager
 
     public void ScanAndLoadAssets()
     {
-        _spriteReplacements.Clear();
-        _textureReplacements.Clear();
-        _audioReplacements.Clear();
-        _fontReplacements.Clear();
-        _shaderReplacements.Clear();
-        _materialReplacements.Clear();
-        _prefabReplacements.Clear();
+        ClearReplacementMaps();
 
         ScanCategory("Sprites", _spriteReplacements);
         ScanCategory("Textures", _textureReplacements);
@@ -47,14 +42,25 @@ internal class AssetSwapManager
         ScanCategory("Materials", _materialReplacements);
         ScanCategory("Prefabs", _prefabReplacements);
 
-        int total = _spriteReplacements.Count + _textureReplacements.Count + _audioReplacements.Count +
-                     _fontReplacements.Count + _shaderReplacements.Count + _materialReplacements.Count +
-                     _prefabReplacements.Count;
+        var totalAssetCount = _spriteReplacements.Count + _textureReplacements.Count + _audioReplacements.Count +
+                              _fontReplacements.Count + _shaderReplacements.Count + _materialReplacements.Count +
+                              _prefabReplacements.Count;
 
         Plugin.LogSource.LogInfo($"[AUAS] Scanned: {_spriteReplacements.Count} sprites, {_textureReplacements.Count} textures, " +
                            $"{_audioReplacements.Count} audio, {_fontReplacements.Count} fonts, " +
                            $"{_shaderReplacements.Count} shaders, {_materialReplacements.Count} materials, " +
-                           $"{_prefabReplacements.Count} prefabs - total {total} replacements.");
+                           $"{_prefabReplacements.Count} prefabs - total {totalAssetCount} replacements.");
+    }
+
+    private void ClearReplacementMaps()
+    {
+        _spriteReplacements.Clear();
+        _textureReplacements.Clear();
+        _audioReplacements.Clear();
+        _fontReplacements.Clear();
+        _shaderReplacements.Clear();
+        _materialReplacements.Clear();
+        _prefabReplacements.Clear();
     }
 
     public void Rescan()
@@ -71,20 +77,21 @@ internal class AssetSwapManager
         ScanAndLoadAssets();
     }
 
-    private void ScanCategory(string category, Dictionary<string, string> target)
+    private void ScanCategory(string category, Dictionary<string, string> replacementMap)
     {
-        var dir = Path.Combine(_rootPath, category);
-        if (!Directory.Exists(dir))
+        var categoryPath = Path.Combine(_rootPath, category);
+        if (!Directory.Exists(categoryPath))
             return;
 
-        var files = Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories);
-        foreach (var file in files)
+        var assetFiles = Directory.GetFiles(categoryPath, "*.*", SearchOption.AllDirectories);
+        foreach (var filePath in assetFiles)
         {
-            if (file.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
+            if (filePath.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var assetName = Path.GetFileNameWithoutExtension(file);
-            target[assetName] = file;
+            var assetName = Path.GetFileNameWithoutExtension(filePath);
+            // old: replacementMap[assetName] = filePath;
+            replacementMap[assetName] = filePath;
         }
     }
 
@@ -106,26 +113,26 @@ internal class AssetSwapManager
 
     public Sprite LoadReplacementSprite(string assetName)
     {
-        if (_spriteCache.TryGetValue(assetName, out var cached))
-            return cached;
+        if (_spriteCache.TryGetValue(assetName, out var cachedSprite))
+            return cachedSprite;
 
         if (!_spriteReplacements.TryGetValue(assetName, out var filePath))
             return null;
 
         try
         {
-            var tex = ImageLoader.LoadTexture2D(filePath);
-            if (tex == null)
+            var texture = ImageLoader.LoadTexture2D(filePath);
+            if (texture == null)
             {
                 Plugin.LogSource.LogWarning($"[AUAS] Failed to load texture for sprite: {assetName}");
                 return null;
             }
 
-            var sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+            var sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
             sprite.name = assetName;
 
             _spriteCache[assetName] = sprite;
-            Plugin.LogSource.LogInfo($"[AUAS] Loaded sprite replacement: {assetName} ({tex.width}x{tex.height})");
+            Plugin.LogSource.LogInfo($"[AUAS] Loaded sprite replacement: {assetName} ({texture.width}x{texture.height})");
             return sprite;
         }
         catch (Exception ex)
@@ -137,25 +144,25 @@ internal class AssetSwapManager
 
     public Texture2D LoadReplacementTexture(string assetName)
     {
-        if (_textureCache.TryGetValue(assetName, out var cached))
-            return cached;
+        if (_textureCache.TryGetValue(assetName, out var cachedTexture))
+            return cachedTexture;
 
         if (!_textureReplacements.TryGetValue(assetName, out var filePath))
             return null;
 
         try
         {
-            var tex = ImageLoader.LoadTexture2D(filePath);
-            if (tex == null)
+            var texture = ImageLoader.LoadTexture2D(filePath);
+            if (texture == null)
             {
                 Plugin.LogSource.LogWarning($"[AUAS] Failed to load texture: {assetName}");
                 return null;
             }
 
-            tex.name = assetName;
-            _textureCache[assetName] = tex;
-            Plugin.LogSource.LogInfo($"[AUAS] Loaded texture replacement: {assetName} ({tex.width}x{tex.height})");
-            return tex;
+            texture.name = assetName;
+            _textureCache[assetName] = texture;
+            Plugin.LogSource.LogInfo($"[AUAS] Loaded texture replacement: {assetName} ({texture.width}x{texture.height})");
+            return texture;
         }
         catch (Exception ex)
         {
@@ -166,8 +173,8 @@ internal class AssetSwapManager
 
     public AudioClip LoadReplacementAudio(string assetName)
     {
-        if (_audioCache.TryGetValue(assetName, out var cached))
-            return cached;
+        if (_audioCache.TryGetValue(assetName, out var cachedClip))
+            return cachedClip;
 
         if (!_audioReplacements.TryGetValue(assetName, out var filePath))
             return null;
@@ -194,8 +201,8 @@ internal class AssetSwapManager
 
     public Font LoadReplacementFont(string assetName)
     {
-        if (_fontCache.TryGetValue(assetName, out var cached))
-            return cached;
+        if (_fontCache.TryGetValue(assetName, out var cachedFont))
+            return cachedFont;
 
         if (!_fontReplacements.TryGetValue(assetName, out var filePath))
             return null;
@@ -252,11 +259,11 @@ internal class AssetSwapManager
                 _loadedBundles[bundlePath] = bundle;
             }
 
-            var obj = bundle.LoadAsset(assetName);
-            var asset = obj as T;
-            if (asset != null)
+            var bundleAsset = bundle.LoadAsset(assetName);
+            var loadedAsset = bundleAsset as T;
+            if (loadedAsset != null)
                 Plugin.LogSource.LogInfo($"[AUAS] Loaded {typeof(T).Name} replacement from bundle: {assetName}");
-            return asset;
+            return loadedAsset;
         }
         catch (Exception ex)
         {
@@ -269,6 +276,7 @@ internal class AssetSwapManager
     {
         if (!Plugin.DumpAllAssets.Value)
             return;
+
         Plugin.LogSource.LogInfo($"[AUAS-DUMP] {assetType.Name}: {assetName}");
     }
 }

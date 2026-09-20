@@ -8,6 +8,7 @@ internal static class FontSwapper
     public static Font LoadFromTtf(string filePath, string fontName)
     {
         if (!File.Exists(filePath)) return null;
+
         try
         {
             var font = new Font(filePath);

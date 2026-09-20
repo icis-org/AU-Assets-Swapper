@@ -8,10 +8,10 @@ internal static class MaterialSwapper
     {
         if (original == null || replacement == null) return original;
 
-        var newMat = new Material(replacement);
-        newMat.name = original.name;
+        var clonedMaterial = new Material(replacement);
+        clonedMaterial.name = original.name;
         if (original.renderQueue != replacement.renderQueue)
-            newMat.renderQueue = original.renderQueue;
-        return newMat;
+            clonedMaterial.renderQueue = original.renderQueue;
+        return clonedMaterial;
     }
 }

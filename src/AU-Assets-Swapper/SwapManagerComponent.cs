@@ -26,6 +26,7 @@ public class SwapManagerComponent : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.F5))
         {
+            // Quick hot reload for the swap folder while testing in-game.
             Plugin.SwapManager?.Rescan();
             ScanAndReplace();
             Plugin.LogSource.LogInfo("[AUAS] Assets rescanned (F5 pressed).");
@@ -47,13 +48,14 @@ public class SwapManagerComponent : MonoBehaviour
             InspectUnderMouse();
         }
 
-        var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
-        if (scene != _lastScene)
+        var sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+        if (sceneName != _lastScene)
         {
-            _lastScene = scene;
+            _lastScene = sceneName;
+            // This keeps the swap list aligned with the current scene without extra clicks.
             Plugin.SwapManager?.Rescan();
             ScanAndReplace();
-            Plugin.LogSource.LogInfo($"[AUAS] Scene changed to '{scene}', scanning assets");
+            Plugin.LogSource.LogInfo($"[AUAS] Scene changed to '{sceneName}', scanning assets");
         }
     }
 
@@ -63,13 +65,13 @@ public class SwapManagerComponent : MonoBehaviour
     {
         try
         {
-            var cam = Camera.main;
-            if (cam == null) return;
+            var camera = Camera.main;
+            if (camera == null) return;
 
-            var mousePos = Input.mousePosition;
-            var worldPos = cam.ScreenToWorldPoint(new Vector3(mousePos.x, mousePos.y, 0f));
+            var mousePosition = Input.mousePosition;
+            var worldPosition = camera.ScreenToWorldPoint(new Vector3(mousePosition.x, mousePosition.y, 0f));
 
-            var hit = Physics2D.OverlapPoint(worldPos);
+            var hit = Physics2D.OverlapPoint(worldPosition);
             if (hit != null)
             {
                 var id = hit.gameObject.GetInstanceID();
@@ -81,9 +83,9 @@ public class SwapManagerComponent : MonoBehaviour
                 return;
             }
 
-            if (CheckUIUnderMouse(mousePos)) return;
+            if (CheckUIUnderMouse(mousePosition)) return;
 
-            CheckRenderersUnderMouse(worldPos);
+            CheckRenderersUnderMouse(worldPosition);
         }
         catch (Exception ex)
         {
@@ -95,22 +97,22 @@ public class SwapManagerComponent : MonoBehaviour
     {
         _imageCache.Clear();
         _imageCache.AddRange(FindObjectsOfType<UnityEngine.UI.Image>());
-        foreach (var img in _imageCache)
+        foreach (var image in _imageCache)
         {
-            if (img == null || !img.gameObject.activeInHierarchy) continue;
-            var rect = img.rectTransform;
+            if (image == null || !image.gameObject.activeInHierarchy) continue;
+            var rect = image.rectTransform;
             if (rect == null) continue;
 
-            var canvas = img.GetComponentInParent<Canvas>();
-            var cam = canvas != null ? canvas.worldCamera : null;
+            var canvas = image.GetComponentInParent<Canvas>();
+            var camera = canvas != null ? canvas.worldCamera : null;
 
-            if (RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, cam))
+            if (RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, camera))
             {
-                var id = img.gameObject.GetInstanceID();
+                var id = image.gameObject.GetInstanceID();
                 if (id != _lastPickedID)
                 {
                     _lastPickedID = id;
-                    LogGameObjectAssets(img.gameObject, "UI");
+                    LogGameObjectAssets(image.gameObject, "UI");
                 }
                 return true;
             }
@@ -118,22 +120,22 @@ public class SwapManagerComponent : MonoBehaviour
 
         _textCache.Clear();
         _textCache.AddRange(FindObjectsOfType<UnityEngine.UI.Text>());
-        foreach (var txt in _textCache)
+        foreach (var text in _textCache)
         {
-            if (txt == null || !txt.gameObject.activeInHierarchy) continue;
-            var rect = txt.rectTransform;
+            if (text == null || !text.gameObject.activeInHierarchy) continue;
+            var rect = text.rectTransform;
             if (rect == null) continue;
 
-            var canvas = txt.GetComponentInParent<Canvas>();
-            var cam = canvas != null ? canvas.worldCamera : null;
+            var canvas = text.GetComponentInParent<Canvas>();
+            var camera = canvas != null ? canvas.worldCamera : null;
 
-            if (RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, cam))
+            if (RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, camera))
             {
-                var id = txt.gameObject.GetInstanceID();
+                var id = text.gameObject.GetInstanceID();
                 if (id != _lastPickedID)
                 {
                     _lastPickedID = id;
-                    LogGameObjectAssets(txt.gameObject, "UI Text");
+                    LogGameObjectAssets(text.gameObject, "UI Text");
                 }
                 return true;
             }
@@ -146,32 +148,32 @@ public class SwapManagerComponent : MonoBehaviour
     {
         _rendererCache.Clear();
         _rendererCache.AddRange(FindObjectsOfType<Renderer>());
-        Renderer best = null;
+        Renderer bestMatch = null;
         float bestArea = float.MaxValue;
 
-        foreach (var r in _rendererCache)
+        foreach (var renderer in _rendererCache)
         {
-            if (r == null || !r.gameObject.activeInHierarchy) continue;
+            if (renderer == null || !renderer.gameObject.activeInHierarchy) continue;
 
-            var bounds = r.bounds;
+            var bounds = renderer.bounds;
             if (worldPos.x < bounds.min.x || worldPos.x > bounds.max.x ||
                 worldPos.y < bounds.min.y || worldPos.y > bounds.max.y) continue;
 
-            var size = bounds.size.x * bounds.size.y;
-            if (size < bestArea)
+            var area = bounds.size.x * bounds.size.y;
+            if (area < bestArea)
             {
-                bestArea = size;
-                best = r;
+                bestArea = area;
+                bestMatch = renderer;
             }
         }
 
-        if (best != null)
+        if (bestMatch != null)
         {
-            var id = best.gameObject.GetInstanceID();
+            var id = bestMatch.gameObject.GetInstanceID();
             if (id != _lastPickedID)
             {
                 _lastPickedID = id;
-                LogGameObjectAssets(best.gameObject, "Renderer");
+                LogGameObjectAssets(bestMatch.gameObject, "Renderer");
             }
         }
     }
@@ -185,73 +187,77 @@ public class SwapManagerComponent : MonoBehaviour
         _pickInfoLines.Add($"Path: {path}");
 
         var manager = Plugin.SwapManager;
-        bool foundAny = false;
+        var foundAnyAsset = false;
 
         var sprites = go.GetComponentsInChildren<SpriteRenderer>(true);
-        foreach (var sr in sprites)
+        foreach (var spriteRenderer in sprites)
         {
-            if (sr == null || sr.sprite == null) continue;
-            var spriteName = sr.sprite.name;
-            var size = $"{sr.sprite.texture.width}x{sr.sprite.texture.height}";
-            _pickInfoLines.Add($"  Sprite [{sr.gameObject.name}]: {spriteName} ({size})");
+            if (spriteRenderer == null || spriteRenderer.sprite == null) continue;
+
+            var spriteName = spriteRenderer.sprite.name;
+            var size = $"{spriteRenderer.sprite.texture.width}x{spriteRenderer.sprite.texture.height}";
+            _pickInfoLines.Add($"  Sprite [{spriteRenderer.gameObject.name}]: {spriteName} ({size})");
             if (manager != null && manager.HasSpriteReplacement(spriteName))
-                _pickInfoLines.Add($"    >> HAS SPRITE REPLACEMENT");
+                _pickInfoLines.Add("    >> HAS SPRITE REPLACEMENT");
             if (manager != null && manager.HasTextureReplacement(spriteName))
-                _pickInfoLines.Add($"    >> HAS TEXTURE REPLACEMENT");
-            foundAny = true;
+                _pickInfoLines.Add("    >> HAS TEXTURE REPLACEMENT");
+            foundAnyAsset = true;
         }
 
         var images = go.GetComponentsInChildren<UnityEngine.UI.Image>(true);
-        foreach (var img in images)
+        foreach (var image in images)
         {
-            if (img == null || img.sprite == null) continue;
-            var spriteName = img.sprite.name;
-            var size = $"{img.sprite.texture.width}x{img.sprite.texture.height}";
-            _pickInfoLines.Add($"  UI Image [{img.gameObject.name}]: {spriteName} ({size})");
+            if (image == null || image.sprite == null) continue;
+
+            var spriteName = image.sprite.name;
+            var size = $"{image.sprite.texture.width}x{image.sprite.texture.height}";
+            _pickInfoLines.Add($"  UI Image [{image.gameObject.name}]: {spriteName} ({size})");
             if (manager != null && manager.HasSpriteReplacement(spriteName))
-                _pickInfoLines.Add($"    >> HAS SPRITE REPLACEMENT");
+                _pickInfoLines.Add("    >> HAS SPRITE REPLACEMENT");
             if (manager != null && manager.HasTextureReplacement(spriteName))
-                _pickInfoLines.Add($"    >> HAS TEXTURE REPLACEMENT");
-            foundAny = true;
+                _pickInfoLines.Add("    >> HAS TEXTURE REPLACEMENT");
+            foundAnyAsset = true;
         }
 
         var renderers = go.GetComponentsInChildren<Renderer>(true);
-        foreach (var r in renderers)
+        foreach (var renderer in renderers)
         {
-            if (r == null) continue;
-            if (r is SpriteRenderer) continue;
-            var mat = r.material;
-            if (mat == null) continue;
+            if (renderer == null) continue;
+            if (renderer is SpriteRenderer) continue;
 
-            var texNames = mat.GetTexturePropertyNames();
-            foreach (var propName in texNames)
+            var material = renderer.material;
+            if (material == null) continue;
+
+            var textureNames = material.GetTexturePropertyNames();
+            foreach (var propertyName in textureNames)
             {
-                var tex = mat.GetTexture(propName);
-                if (tex == null) continue;
-                var texSize = $"{tex.width}x{tex.height}";
-                _pickInfoLines.Add($"  Texture [{r.gameObject.name}] {propName}: {tex.name} ({texSize})");
-                if (manager != null && manager.HasTextureReplacement(tex.name))
-                    _pickInfoLines.Add($"    >> HAS TEXTURE REPLACEMENT");
-                foundAny = true;
+                var texture = material.GetTexture(propertyName);
+                if (texture == null) continue;
+
+                var textureSize = $"{texture.width}x{texture.height}";
+                _pickInfoLines.Add($"  Texture [{renderer.gameObject.name}] {propertyName}: {texture.name} ({textureSize})");
+                if (manager != null && manager.HasTextureReplacement(texture.name))
+                    _pickInfoLines.Add("    >> HAS TEXTURE REPLACEMENT");
+                foundAnyAsset = true;
             }
 
-            if (mat.HasProperty("_Color"))
+            if (material.HasProperty("_Color"))
             {
-                _pickInfoLines.Add($"  Color [{r.gameObject.name}]: {mat.color}");
-                foundAny = true;
+                _pickInfoLines.Add($"  Color [{renderer.gameObject.name}]: {material.color}");
+                foundAnyAsset = true;
             }
         }
 
         var uiTexts = go.GetComponentsInChildren<UnityEngine.UI.Text>(true);
-        foreach (var txt in uiTexts)
+        foreach (var text in uiTexts)
         {
-            if (txt == null) continue;
-            var fontName = txt.font != null ? txt.font.name : "null";
-            _pickInfoLines.Add($"  UI Text [{txt.gameObject.name}]: \"{txt.text}\" (Font: {fontName})");
-            foundAny = true;
+            if (text == null) continue;
+            var fontName = text.font != null ? text.font.name : "null";
+            _pickInfoLines.Add($"  UI Text [{text.gameObject.name}]: \"{text.text}\" (Font: {fontName})");
+            foundAnyAsset = true;
         }
 
-        if (!foundAny)
+        if (!foundAnyAsset)
         {
             _pickInfoLines.Add("  (no visual components found)");
         }
@@ -290,7 +296,7 @@ public class SwapManagerComponent : MonoBehaviour
             var infoRect = new Rect(x, y, boxWidth, infoHeight);
             GUI.Box(infoRect, "", _pickBoxStyle);
 
-            float ly = y + 8f;
+            float labelY = y + 8f;
             foreach (var line in _pickInfoLines)
             {
                 if (line.StartsWith("  >>"))
@@ -302,8 +308,8 @@ public class SwapManagerComponent : MonoBehaviour
                 else
                     GUI.contentColor = Color.white;
 
-                GUI.Label(new Rect(x + 8f, ly, boxWidth - 16f, lineHeight), line, _pickLabelStyle);
-                ly += lineHeight;
+                GUI.Label(new Rect(x + 8f, labelY, boxWidth - 16f, lineHeight), line, _pickLabelStyle);
+                labelY += lineHeight;
             }
             GUI.contentColor = Color.white;
         }
@@ -339,23 +345,25 @@ public class SwapManagerComponent : MonoBehaviour
         var pixels = new Color[width * height];
         for (int i = 0; i < pixels.Length; i++)
             pixels[i] = color;
-        var tex = new Texture2D(width, height);
-        tex.SetPixels(pixels);
-        tex.Apply();
-        return tex;
+
+        var texture = new Texture2D(width, height);
+        texture.SetPixels(pixels);
+        texture.Apply();
+        return texture;
     }
 
     private static string GetHierarchyPath(GameObject go)
     {
-        var parts = new List<string>();
-        var t = go.transform;
-        while (t != null)
+        var pathParts = new List<string>();
+        var current = go.transform;
+        while (current != null)
         {
-            parts.Add(t.name);
-            t = t.parent;
+            pathParts.Add(current.name);
+            current = current.parent;
         }
-        parts.Reverse();
-        return string.Join("/", parts);
+
+        pathParts.Reverse();
+        return string.Join("/", pathParts);
     }
 
     #endregion
@@ -382,68 +390,68 @@ public class SwapManagerComponent : MonoBehaviour
     {
         _spriteRendererCache.Clear();
         _spriteRendererCache.AddRange(FindObjectsOfType<SpriteRenderer>());
-        int replaced = 0;
 
-        foreach (var sr in _spriteRendererCache)
+        var replacedCount = 0;
+        foreach (var spriteRenderer in _spriteRendererCache)
         {
-            if (sr == null || sr.sprite == null) continue;
-            if (!sr.gameObject.activeInHierarchy) continue;
+            if (spriteRenderer == null || spriteRenderer.sprite == null) continue;
+            if (!spriteRenderer.gameObject.activeInHierarchy) continue;
 
-            var spriteName = sr.sprite.name;
+            var spriteName = spriteRenderer.sprite.name;
             if (manager.HasSpriteReplacement(spriteName))
             {
                 var replacement = manager.LoadReplacementSprite(spriteName);
                 if (replacement != null)
                 {
-                    sr.sprite = replacement;
-                    replaced++;
+                    spriteRenderer.sprite = replacement;
+                    replacedCount++;
                 }
             }
             else if (manager.HasTextureReplacement(spriteName))
             {
-                var tex = manager.LoadReplacementTexture(spriteName);
-                if (tex != null)
+                var texture = manager.LoadReplacementTexture(spriteName);
+                if (texture != null)
                 {
-                    var newSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), sr.sprite.pixelsPerUnit);
+                    var newSprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), spriteRenderer.sprite.pixelsPerUnit);
                     newSprite.name = spriteName;
-                    sr.sprite = newSprite;
-                    replaced++;
+                    spriteRenderer.sprite = newSprite;
+                    replacedCount++;
                 }
             }
         }
 
-        return replaced;
+        return replacedCount;
     }
 
     private int ReplaceRenderers(AssetSwapManager manager)
     {
         _rendererCache.Clear();
         _rendererCache.AddRange(FindObjectsOfType<Renderer>());
-        int replaced = 0;
 
-        foreach (var r in _rendererCache)
+        var replacedCount = 0;
+        foreach (var renderer in _rendererCache)
         {
-            if (r == null || !r.gameObject.activeInHierarchy) continue;
-            if (r is SpriteRenderer) continue;
+            if (renderer == null || !renderer.gameObject.activeInHierarchy) continue;
+            if (renderer is SpriteRenderer) continue;
 
-            var mat = r.material;
-            if (mat == null) continue;
-            if (!mat.HasProperty("_MainTex")) continue;
-            if (mat.mainTexture == null) continue;
+            var material = renderer.material;
+            if (material == null) continue;
+            if (!material.HasProperty("_MainTex")) continue;
+            if (material.mainTexture == null) continue;
 
-            var texName = mat.mainTexture.name;
-            if (manager.HasTextureReplacement(texName))
+            var textureName = material.mainTexture.name;
+            if (manager.HasTextureReplacement(textureName))
             {
-                var replacement = manager.LoadReplacementTexture(texName);
+                var replacement = manager.LoadReplacementTexture(textureName);
                 if (replacement != null)
                 {
-                    mat.mainTexture = replacement;
-                    replaced++;
+                    material.mainTexture = replacement;
+                    replacedCount++;
                 }
             }
         }
 
-        return replaced;
+        return replacedCount;
     }
 
     #endregion

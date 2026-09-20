@@ -14,11 +14,11 @@ internal static class AssetLogger
         if (!Plugin.DumpAllAssets.Value)
             return;
 
-        var entry = $"[{assetType.Name}] {assetPath}";
-        if (!_loggedAssets.Contains(entry))
+        var logEntry = $"[{assetType.Name}] {assetPath}";
+        if (!_loggedAssets.Contains(logEntry))
         {
-            _loggedAssets.Add(entry);
-            Plugin.LogSource.LogInfo($"[AUAS-DUMP] {entry}");
+            _loggedAssets.Add(logEntry);
+            Plugin.LogSource.LogInfo($"[AUAS-DUMP] {logEntry}");
         }
     }
 
@@ -30,6 +30,7 @@ internal static class AssetLogger
         try
         {
             var dumpPath = Path.Combine(Plugin.SwapRootPath, "AssetDump.txt");
+            // old: File.WriteAllLines(dumpPath, _loggedAssets);
             File.WriteAllLines(dumpPath, _loggedAssets);
             Plugin.LogSource.LogInfo($"[AUAS] Asset dump saved to: {dumpPath} ({_loggedAssets.Count} entries)");
         }
