@@ -128,5 +128,4 @@ This repository is focused on runtime asset replacement for Among Us. It is inte
 Use the in-game asset dump output to determine the exact asset names you want to override, and place replacement files in the matching folder with the same name (without extension).
 
 ## License
-
-Anyone can fork this repo and contribute. But anyone cant hard fork it.
+GNU General Public License v3.0
