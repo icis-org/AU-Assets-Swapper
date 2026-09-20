@@ -8,187 +8,90 @@ namespace AU_Assets_Swapper.Patches;
 
 internal static class ResourcesLoadPatch
 {
-    private static int _stringLoadLogged;
-    private static int _typedLoadLogged;
-    private static int _loadAllLogged;
+    private static int _strLogged;
+    private static int _typedLogged;
+    private static int _allLogged;
     private static readonly HarmonyMethod _loadPrefix = new(AccessTools.Method(typeof(ResourcesLoadPatch), nameof(LoadPrefix)));
-    private static readonly HarmonyMethod _loadTypedPrefix = new(AccessTools.Method(typeof(ResourcesLoadPatch), nameof(LoadTypedPrefix)));
-    private static readonly HarmonyMethod _loadAllPrefix = new(AccessTools.Method(typeof(ResourcesLoadPatch), nameof(LoadAllPrefix)));
+    private static readonly HarmonyMethod _typedPrefix = new(AccessTools.Method(typeof(ResourcesLoadPatch), nameof(TypedPrefix)));
+    private static readonly HarmonyMethod _allPrefix = new(AccessTools.Method(typeof(ResourcesLoadPatch), nameof(AllPrefix)));
 
     public static void Patch(Harmony harmony)
     {
-        var methods = typeof(Resources).GetMethods(BindingFlags.Public | BindingFlags.Static);
-        foreach (var method in methods)
+        foreach (var m in typeof(Resources).GetMethods(BindingFlags.Public | BindingFlags.Static))
         {
-            if (method.IsGenericMethod) continue;
-            if (method.ContainsGenericParameters) continue;
+            if (m.IsGenericMethod || m.ContainsGenericParameters) continue;
 
             try
             {
-                var parameters = method.GetParameters();
-                if (method.Name == "Load" && parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
-                    harmony.Patch(method, _loadPrefix);
-                else if (method.Name == "Load" && parameters.Length == 2 && parameters[0].ParameterType == typeof(string) && parameters[1].ParameterType == typeof(Type))
-                    harmony.Patch(method, _loadTypedPrefix);
-                else if (method.Name == "LoadAll" && parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
-                    harmony.Patch(method, _loadAllPrefix);
+                var p = m.GetParameters();
+                if (m.Name == "Load" && p.Length == 1 && p[0].ParameterType == typeof(string))
+                    harmony.Patch(m, _loadPrefix);
+                else if (m.Name == "Load" && p.Length == 2 && p[0].ParameterType == typeof(string) && p[1].ParameterType == typeof(Type))
+                    harmony.Patch(m, _typedPrefix);
+                else if (m.Name == "LoadAll" && p.Length == 1 && p[0].ParameterType == typeof(string))
+                    harmony.Patch(m, _allPrefix);
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogWarning($"[AUAS] Failed to patch Resources.{method.Name}: {ex.Message}");
+                Plugin.LogSource.LogWarning($"[AUAS] Failed to patch Resources.{m.Name}: {ex.Message}");
             }
         }
     }
 
     internal static bool LoadPrefix(string path, ref UnityEngine.Object __result)
     {
-        if (Interlocked.CompareExchange(ref _stringLoadLogged, 1, 0) == 0)
+        if (Interlocked.CompareExchange(ref _strLogged, 1, 0) == 0)
             Plugin.LogSource.LogInfo("[AUAS] Resources.Load(string) prefix CALLED");
 
-        if (string.IsNullOrEmpty(path))
-            return true;
+        if (string.IsNullOrEmpty(path)) return true;
+        var mgr = Plugin.SwapManager;
+        if (mgr == null) return true;
 
-        var manager = Plugin.SwapManager;
-        if (manager == null)
-            return true;
+        var name = ExtractName(path);
+        mgr.LogLoadedAsset(path, typeof(UnityEngine.Object));
 
-        var assetName = ExtractAssetName(path);
-        manager.LogLoadedAsset(path, typeof(UnityEngine.Object));
-
-        if (manager.HasTextureReplacement(assetName))
-        {
-            var texture = manager.LoadReplacementTexture(assetName);
-            if (texture != null) { __result = texture; return false; }
-        }
-
-        if (manager.HasSpriteReplacement(assetName))
-        {
-            var sprite = manager.LoadReplacementSprite(assetName);
-            if (sprite != null) { __result = sprite; return false; }
-        }
-
-        if (manager.HasAudioReplacement(assetName))
-        {
-            var clip = manager.LoadReplacementAudio(assetName);
-            if (clip != null) { __result = clip; return false; }
-        }
-
-        if (manager.HasFontReplacement(assetName))
-        {
-            var font = manager.LoadReplacementFont(assetName);
-            if (font != null) { __result = font; return false; }
-        }
-
-        if (manager.HasShaderReplacement(assetName))
-        {
-            var shader = manager.LoadReplacementShader(assetName);
-            if (shader != null) { __result = shader; return false; }
-        }
-
-        if (manager.HasMaterialReplacement(assetName))
-        {
-            var material = manager.LoadReplacementMaterial(assetName);
-            if (material != null) { __result = material; return false; }
-        }
-
-        if (manager.HasPrefabReplacement(assetName))
-        {
-            var prefab = manager.LoadReplacementPrefab(assetName);
-            if (prefab != null) { __result = prefab; return false; }
-        }
+        var res = mgr.TryFindReplacement(name);
+        if (res != null) { __result = res; return false; }
 
         return true;
     }
 
-    internal static bool LoadTypedPrefix(string path, Type systemTypeInstance, ref UnityEngine.Object __result)
+    internal static bool TypedPrefix(string path, Type t, ref UnityEngine.Object __result)
     {
-        if (Interlocked.CompareExchange(ref _typedLoadLogged, 1, 0) == 0)
+        if (Interlocked.CompareExchange(ref _typedLogged, 1, 0) == 0)
             Plugin.LogSource.LogInfo("[AUAS] Resources.Load(string, Type) prefix CALLED");
 
-        if (string.IsNullOrEmpty(path))
-            return true;
+        if (string.IsNullOrEmpty(path)) return true;
+        var mgr = Plugin.SwapManager;
+        if (mgr == null) return true;
 
-        var manager = Plugin.SwapManager;
-        if (manager == null)
-            return true;
+        var name = ExtractName(path);
+        mgr.LogLoadedAsset(path, t ?? typeof(UnityEngine.Object));
 
-        var assetName = ExtractAssetName(path);
-        manager.LogLoadedAsset(path, systemTypeInstance ?? typeof(UnityEngine.Object));
-
-        if (systemTypeInstance == typeof(Texture2D) && manager.HasTextureReplacement(assetName))
-        {
-            var texture = manager.LoadReplacementTexture(assetName);
-            if (texture != null) { __result = texture; return false; }
-        }
-
-        if (systemTypeInstance == typeof(Sprite) && manager.HasSpriteReplacement(assetName))
-        {
-            var sprite = manager.LoadReplacementSprite(assetName);
-            if (sprite != null) { __result = sprite; return false; }
-        }
-
-        if (systemTypeInstance == typeof(AudioClip) && manager.HasAudioReplacement(assetName))
-        {
-            var clip = manager.LoadReplacementAudio(assetName);
-            if (clip != null) { __result = clip; return false; }
-        }
-
-        if (systemTypeInstance == typeof(Font) && manager.HasFontReplacement(assetName))
-        {
-            var font = manager.LoadReplacementFont(assetName);
-            if (font != null) { __result = font; return false; }
-        }
-
-        if (systemTypeInstance == typeof(Shader) && manager.HasShaderReplacement(assetName))
-        {
-            var shader = manager.LoadReplacementShader(assetName);
-            if (shader != null) { __result = shader; return false; }
-        }
-
-        if (systemTypeInstance == typeof(Material) && manager.HasMaterialReplacement(assetName))
-        {
-            var material = manager.LoadReplacementMaterial(assetName);
-            if (material != null) { __result = material; return false; }
-        }
-
-        if (systemTypeInstance == typeof(GameObject) && manager.HasPrefabReplacement(assetName))
-        {
-            var prefab = manager.LoadReplacementPrefab(assetName);
-            if (prefab != null) { __result = prefab; return false; }
-        }
+        var res = mgr.TryFindReplacement(name, t);
+        if (res != null) { __result = res; return false; }
 
         return true;
     }
 
-    internal static bool LoadAllPrefix(string path, ref UnityEngine.Object[] __result)
+    internal static bool AllPrefix(string path, ref UnityEngine.Object[] __result)
     {
-        if (Interlocked.CompareExchange(ref _loadAllLogged, 1, 0) == 0)
+        if (Interlocked.CompareExchange(ref _allLogged, 1, 0) == 0)
             Plugin.LogSource.LogInfo("[AUAS] Resources.LoadAll(string) prefix CALLED");
 
-        if (string.IsNullOrEmpty(path))
-            return true;
+        if (string.IsNullOrEmpty(path)) return true;
+        var mgr = Plugin.SwapManager;
+        if (mgr == null) return true;
 
-        var manager = Plugin.SwapManager;
-        if (manager == null)
-            return true;
-
-        manager.LogLoadedAsset(path + " (LoadAll)", typeof(UnityEngine.Object));
+        mgr.LogLoadedAsset(path + " (LoadAll)", typeof(UnityEngine.Object));
         return true;
     }
 
-    private static string ExtractAssetName(string path)
+    // grab filename from a resource path like "Sprites/mySprite"
+    private static string ExtractName(string path)
     {
-        if (string.IsNullOrEmpty(path))
-            return string.Empty;
-
-        var lastSlash = path.LastIndexOf('/');
-        if (lastSlash >= 0)
-            return path.Substring(lastSlash + 1);
-
-        var lastBackslash = path.LastIndexOf('\\');
-        if (lastBackslash >= 0)
-            return path.Substring(lastBackslash + 1);
-
-        return path;
+        if (string.IsNullOrEmpty(path)) return string.Empty;
+        var i = Math.Max(path.LastIndexOf('/'), path.LastIndexOf('\\'));
+        return i >= 0 ? path.Substring(i + 1) : path;
     }
 }

@@ -9,23 +9,24 @@ internal static class ShaderSwapper
         if (bundle == null) return null;
 
         var assets = bundle.LoadAllAssets();
+
+        // try exact match first
         foreach (var asset in assets)
         {
-            var shader = asset as Shader;
-            if (shader == null) continue;
-
-            if (shader.name == shaderName || shader.name.EndsWith("/" + shaderName))
-                return shader;
+            var s = asset as Shader;
+            if (s == null) continue;
+            if (s.name == shaderName || s.name.EndsWith("/" + shaderName))
+                return s;
         }
 
-        // fallback: use whatever shader we can find so the scene doesn't break
+        // fallback: just grab whatever shader we can find so the scene doesn't explode
         foreach (var asset in assets)
         {
-            var shader = asset as Shader;
-            if (shader != null)
+            var s = asset as Shader;
+            if (s != null)
             {
-                Plugin.LogSource.LogWarning($"[AUAS] Shader '{shaderName}' not found, using: {shader.name}");
-                return shader;
+                Plugin.LogSource.LogWarning($"[AUAS] shader '{shaderName}' not found, using: {s.name}");
+                return s;
             }
         }
 

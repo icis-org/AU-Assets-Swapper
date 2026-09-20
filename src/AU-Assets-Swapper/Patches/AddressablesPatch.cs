@@ -8,46 +8,40 @@ namespace AU_Assets_Swapper.Patches;
 
 internal static class AddressablesPatch
 {
-    private static int _addressablesPatchLogged;
+    private static int _logged;
 
     public static void Patch(Harmony harmony)
     {
         try
         {
-            var addressablesType = Type.GetType("UnityEngine.AddressableAssets.Addressables, Unity.Addressables");
-            if (addressablesType == null)
+            var t = Type.GetType("UnityEngine.AddressableAssets.Addressables, Unity.Addressables");
+            if (t == null)
             {
-                Plugin.LogSource.LogWarning("[AUAS] Addressables type not found, skipping Addressables patch.");
+                Plugin.LogSource.LogWarning("[AUAS] Addressables type not found, skipping.");
                 return;
             }
 
-            Plugin.LogSource.LogInfo("[AUAS] Found Addressables type, attempting to patch LoadAsset methods...");
+            Plugin.LogSource.LogInfo("[AUAS] Found Addressables, patching LoadAsset...");
 
-            var methods = addressablesType.GetMethods(BindingFlags.Public | BindingFlags.Static);
-            var patchedCount = 0;
-
-            foreach (var method in methods)
+            int patched = 0;
+            foreach (var m in t.GetMethods(BindingFlags.Public | BindingFlags.Static))
             {
-                if (method.IsGenericMethod) continue;
-                if (method.ContainsGenericParameters) continue;
+                if (m.IsGenericMethod || m.ContainsGenericParameters) continue;
 
                 try
                 {
-                    var parameters = method.GetParameters();
-                    if (method.Name == "LoadAsset" && parameters.Length == 1 && parameters[0].ParameterType == typeof(string))
+                    var p = m.GetParameters();
+                    if (m.Name == "LoadAsset" && p.Length == 1 && p[0].ParameterType == typeof(string))
                     {
-                        var prefix = new HarmonyMethod(AccessTools.Method(typeof(AddressablesPatch), nameof(LoadAssetPrefix)));
-                        harmony.Patch(method, prefix);
-                        patchedCount++;
+                        harmony.Patch(m, new HarmonyMethod(
+                            AccessTools.Method(typeof(AddressablesPatch), nameof(Prefix))));
+                        patched++;
                     }
                 }
-                catch
-                {
-                    // Harmony already logs patch failures
-                }
+                catch { /* harmony already logs failures */ }
             }
 
-            Plugin.LogSource.LogInfo($"[AUAS] Addressables: patched {patchedCount} methods.");
+            Plugin.LogSource.LogInfo($"[AUAS] Addressables: patched {patched} methods.");
         }
         catch (Exception ex)
         {
@@ -55,19 +49,20 @@ internal static class AddressablesPatch
         }
     }
 
-    internal static bool LoadAssetPrefix(string key, ref object __result)
+    internal static bool Prefix(string key, ref object __result)
     {
-        if (Interlocked.CompareExchange(ref _addressablesPatchLogged, 1, 0) == 0)
+        if (Interlocked.CompareExchange(ref _logged, 1, 0) == 0)
             Plugin.LogSource.LogInfo("[AUAS] Addressables.LoadAsset(string) prefix CALLED");
 
-        if (string.IsNullOrEmpty(key))
-            return true;
+        if (string.IsNullOrEmpty(key)) return true;
+        var mgr = Plugin.SwapManager;
+        if (mgr == null) return true;
 
-        var manager = Plugin.SwapManager;
-        if (manager == null)
-            return true;
+        mgr.LogLoadedAsset($"[Addressable] {key}", typeof(object));
 
-        manager.LogLoadedAsset($"[Addressable] {key}", typeof(object));
+        var res = mgr.TryFindReplacement(key);
+        if (res != null) { __result = res; return false; }
+
         return true;
     }
 }

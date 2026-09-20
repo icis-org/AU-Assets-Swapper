@@ -5,19 +5,18 @@ namespace AU_Assets_Swapper.Swappers;
 
 internal static class FontSwapper
 {
-    public static Font LoadFromTtf(string filePath, string fontName)
+    public static Font LoadFromTtf(string path, string name)
     {
-        if (!File.Exists(filePath)) return null;
-
+        if (!File.Exists(path)) return null;
         try
         {
-            var font = new Font(filePath);
-            font.name = fontName;
-            return font;
+            var f = new Font(path);
+            f.name = name;
+            return f;
         }
         catch (System.Exception ex)
         {
-            Plugin.LogSource.LogError($"[AUAS] Failed to load TTF '{fontName}': {ex.Message}");
+            Plugin.LogSource.LogError($"[AUAS] failed to load TTF '{name}': {ex.Message}");
             return null;
         }
     }

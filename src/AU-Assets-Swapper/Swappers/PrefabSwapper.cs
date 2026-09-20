@@ -4,17 +4,18 @@ namespace AU_Assets_Swapper.Swappers;
 
 internal static class PrefabSwapper
 {
-    public static GameObject InstantiateReplacement(GameObject original, GameObject replacement)
+    public static GameObject InstantiateReplacement(GameObject orig, GameObject repl)
     {
-        if (original == null || replacement == null) return original;
+        if (orig == null || repl == null) return orig;
 
-        var instance = Object.Instantiate(replacement);
-        if (instance == null) return original;
+        var inst = Object.Instantiate(repl);
+        if (inst == null) return orig;
 
-        instance.name = original.name;
-        instance.transform.position = original.transform.position;
-        instance.transform.rotation = original.transform.rotation;
-        instance.transform.localScale = original.transform.localScale;
-        return instance;
+        // copy transform from original
+        inst.name = orig.name;
+        inst.transform.position = orig.transform.position;
+        inst.transform.rotation = orig.transform.rotation;
+        inst.transform.localScale = orig.transform.localScale;
+        return inst;
     }
 }
