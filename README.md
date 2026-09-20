@@ -129,4 +129,4 @@ Use the in-game asset dump output to determine the exact asset names you want to
 
 ## License
 
-Custom
+Anyone can fork this repo and contribute. But anyone cant hard fork it.
